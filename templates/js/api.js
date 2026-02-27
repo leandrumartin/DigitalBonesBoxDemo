@@ -10,14 +10,43 @@ const API_CONFIG = {
 };
 
 export async function fetchCombinedData() {
-    const API_URL = `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.COMBINED_DATA}`;
-
     try {
-        const response = await fetch(API_URL);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        const bonesetIDs = ["bony_pelvis"];
+        const bonesetDataArray = [];
+
+        const bonesets = [];
+        const bones = [];
+        const subbones = [];
+
+        for (const bonesetId of bonesetIDs) {
+            const bonesetData = await fetch(`./data/boneset/${bonesetId}.json`).then(response => {
+                if (!response.ok) {
+
+                }
+                return response.json();
+            });
+            bonesetDataArray.push(bonesetData);
+            bonesets.push({id: bonesetData.id, name: bonesetData.name});
         }
-        return await response.json();
+
+        for (const bonesetData of bonesetDataArray) {
+            for (const boneId of bonesetData.bones) {
+                const boneData = await fetch(`./data/bones/${boneId}.json`).then(response => {
+                    if (!response.ok) {
+                        // throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                });
+                if (boneData) {
+                    bones.push({id: boneData.id, name: boneData.name, boneset: bonesetData.id});
+                    (boneData.subBones || []).forEach((subBoneId) => {
+                        subbones.push({ id: subBoneId, name: subBoneId.replace(/_/g, " "), bone: boneData.id });
+                    });
+                }
+            }
+        }
+
+        return {bonesets, bones, subbones};
     } catch (error) {
         console.error("Error fetching combined data:", error);
         throw error;
@@ -47,13 +76,27 @@ export async function fetchMockBoneData() {
 export async function fetchBoneData(boneId) {
     if (!boneId) return null;
 
-    const url = `${API_CONFIG.BASE_URL}/api/bone-data/?boneId=${encodeURIComponent(boneId)}`;
     try {
-        const resp = await fetch(url);
-        if (!resp.ok) {
-            throw new Error(`HTTP error! status: ${resp.status}`);
-        }
-        return await resp.json();
+        const descriptionFilename = `./data/descriptions/${boneId}_description.json`;
+        const descriptionData = await fetch(descriptionFilename).then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        });
+
+        const imagesArray = descriptionData.images || [];
+        const images = imagesArray.map(filename => ({
+            filename: filename,
+            url: `./data/images/${filename}`
+        }));
+
+        return {
+            name: descriptionData.name,
+            id: descriptionData.id,
+            description: descriptionData.description,
+            images: images
+        };
     } catch (err) {
         console.error(`Error fetching bone data for ${boneId}:`, err);
         return null;
